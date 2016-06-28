@@ -1,10 +1,17 @@
 #!/usr/bin/env ruby
 # vim: ft=ruby
+
+# Binary Star server proof-of-concept implementation. This server does no
+# real work; it just demonstrates the Binary Star failover model.
+
 require 'optparse'
 require 'cztop'
 
-HEARTBEAT = 1.0
+#  We send state information this often
+#  If peer doesn't respond in two heartbeats, it is 'dead'
+HEARTBEAT = 1000 # in msecs
 
+# Binary Star finite-state machine.
 class BStarState
   Exception = Class.new(StandardError)
 
@@ -19,7 +26,6 @@ class BStarState
     @state = state
     @peer_expiry = peer_expiry
   end
-
 
   def <<(event)
     puts "processing event #{event.inspect} ..."
@@ -106,11 +112,15 @@ if __FILE__ == $0
     abort "Usage: #$0 { -p | -b }"
   end
 
+  # We use three sockets; one to publish state, one to subscribe to state, and
+  # one for client requests/replies.
   statepub = CZTop::Socket::PUB.new
   statesub = CZTop::Socket::SUB.new
   statesub.subscribe
   frontend = CZTop::Socket::ROUTER.new
 
+  # We bind/connect our sockets with our peer and make sure we will get state
+  # messages correctly.
   case options[:role]
   when :primary
     puts "I: Primary master, waiting for backup (slave)"
@@ -127,21 +137,24 @@ if __FILE__ == $0
     bstar = BStarState.new(:backup)
   end
 
+  # We now process events on our two input sockets, and process these events
+  # one at a time via our finite-state machine. Our "work" for a client
+  # request is simply to echo it back:
   poller = CZTop::Poller.new(statesub, frontend)
-  send_state_at = Time.now + HEARTBEAT
-  loop do
-    time_left = (send_state_at - Time.now)
+  send_state_at = Time.now + (HEARTBEAT/1000.0)
+  while true
+    # round to msec resolution to avoid polling bursts
+    time_left = (send_state_at - Time.now).round(3)
     time_left = 0 if time_left < 0
+    time_left = (time_left * 1000).to_i # convert to msec
 
-    puts "polling (time_left = #{time_left})"
-    event = poller.wait(time_left * 1000)
-    case event.socket
+    case poller.simple_wait(time_left)
     when statesub
       # state from peer
       msg = statesub.receive
       puts "received message from statesub: #{msg.to_a.inspect}"
       bstar << :"peer_#{msg[0]}" # this could exit the process
-      bstar.peer_expiry = Time.now + 2 * HEARTBEAT
+      bstar.peer_expiry = Time.now + 2 * (HEARTBEAT/1000.0)
     when frontend
       # client request
       msg = frontend.receive
@@ -153,12 +166,12 @@ if __FILE__ == $0
         # We got a client request even though we're passive AND peer is alive.
         # We'll just ignore it.
       end
-    end if event
+    end
 
     # If we timed out, send state to peer.
     if Time.now >= send_state_at
       statepub << bstar.state.to_s
-      send_state_at = Time.now + HEARTBEAT
+      send_state_at = Time.now + (HEARTBEAT/1000.0)
     end
   end
 end
