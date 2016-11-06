@@ -1,6 +1,6 @@
 #!/usr/bin/env ruby
 require 'optparse'
-require_relative "lib/cztop/patterns"
+require_relative "../lib/cztop/patterns"
 $-v = true
 $-d = true
 
@@ -38,13 +38,13 @@ bstar = CZTop::Patterns::BStar.new(options[:role], local, remote)
 frontend = CZTop::Socket::ROUTER.new(front)
 bstar.frontend = frontend
 
-#bstar.on_active do
-#  warn "I've gone ACTIVE!"
-#end
-#
-#bstar.on_passive do
-#  warn "I've gone PASSIVE!"
-#end
+bstar.on_active do
+  warn "I've gone ACTIVE!"
+end
+
+bstar.on_passive do
+  warn "I've gone PASSIVE!"
+end
 
 bstar.on_request do |req|
 #  warn "Got request: #{req.inspect}"

@@ -177,6 +177,8 @@ class CZTop::Patterns::BStar
   def vote!
     # this could initiate failover if peer unresponsive
     fsm(Events::CLIENT_REQUEST)
+  rescue NotActive
+    # not taking over yet
   end
 
   # Register into EventMachine.
@@ -198,7 +200,7 @@ class CZTop::Patterns::BStar
   # Read all pending state messages from the other peer.
   # @return [void]
   def read_state
-    while (@statesub.options.events & CZTop::Poller::ZMQ::POLLIN) > 0
+    while @statesub.readable?
       msg = @statesub.receive
       @peer_expiry = Time.now + 2 * @heartbeat
       case msg[0]
@@ -263,7 +265,7 @@ class CZTop::Patterns::BStar
   # Reads and discards all messages from the frontend socket.
   # @return [void]
   def discard_votes
-    while (@frontend.options.events & CZTop::Poller::ZMQ::POLLIN) > 0
+    while @frontend.readable?
       @frontend.receive
     end
   end
@@ -273,7 +275,7 @@ class CZTop::Patterns::BStar
   #
   # @return [void]
   def process_requests
-    while (@frontend.options.events & CZTop::Poller::ZMQ::POLLIN) > 0
+    while @frontend.readable?
       # socket is readable
       request = @frontend.receive
       if @on_request

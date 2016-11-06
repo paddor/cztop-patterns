@@ -165,6 +165,7 @@ if __FILE__ == $0
       rescue BStarState::Exception
         # We got a client request even though we're passive AND peer is alive.
         # We'll just ignore it.
+        puts "doing nothing"
       end
     end
 
