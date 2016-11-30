@@ -209,6 +209,8 @@ class CZTop::Patterns::BStar
       case msg[0]
       when "BSTAR"
         peer_state = msg[1].to_sym
+
+        # NOTE could only raise DualPassives and SplitBrain
         fsm(Events.event_for(peer_state))
       else
         # FIXME
