@@ -187,6 +187,9 @@ class CZTop::Patterns::BStar
     send_states
     watch_statesub
     watch_frontend if @frontend
+
+    # expect first state from peer within 2 heartbeats
+    @peer_expiry = Time.now + 2 * @heartbeat
   end
 
   # Unregister from EventMachine.
@@ -291,8 +294,8 @@ class CZTop::Patterns::BStar
   # @see Events
   # @return [void]
   # @raise [NotActive] if client request can't be processed because this
-  #   peer either still in {States::BACKUP} or {States::PASSIVE} (and peer
-  #   still seems alive)
+  #   peer either still in {States::PRIMARY}, {States::BACKUP} or is in
+  #   {States::PASSIVE} and peer still seems alive
   # @raise [SplitBrain] if this peer is {States::ACTIVE} and the other peer
   #   reported {States::ACTIVE} as well
   # @raise [DualPassives] if this peer is {States::PASSIVE} and the other
@@ -309,8 +312,20 @@ class CZTop::Patterns::BStar
       when Events::PEER_ACTIVE
         warn "I: connected to backup (active), ready passive"
         passive!
+      when Events::CLIENT_REQUEST
+        # NOTE: Not going active immediately here because backup node could
+        # currently be active.
+
+        if peer_expired?
+          # Backup peer seems offline, switch to the active state and
+          # accept client connections
+          warn "I: backup seems dead, going ready active"
+          active!
+        else
+          # If peer is alive, reject connections
+          fail NotActive
+        end
       end
-      # Accept client connections
 
     when States::BACKUP
       case event
