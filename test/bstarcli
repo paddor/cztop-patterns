@@ -4,7 +4,6 @@
 # Binary Star client proof-of-concept implementation. This client does no
 # real work; it just demonstrates the Binary Star failover model.
 
-require 'optparse'
 require 'cztop'
 
 REQUEST_TIMEOUT = 1000 # msecs
